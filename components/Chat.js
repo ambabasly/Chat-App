@@ -1,11 +1,12 @@
 import React from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 import 
 { 
   View, 
   StyleSheet, 
   Platform, 
   KeyboardAvoidingView,
-  LogBox  
 } from 'react-native';
 
 import 
@@ -20,13 +21,21 @@ require('firebase/firestore');
 
 
 export default class Chat extends React.Component {
-  constructor() {
-    super();
+  constructor(props) {
+    super(props);
     this.state = {
       messages: [],
       uid: 0,
-      loggedInText: "Please wait, you are getting logged in",
-    }
+      user: {
+        _id: '',
+        name: '',
+        avatar: '',
+      },
+      isConnected: false,
+      image: null,
+      location: null,
+    };
+    
     // Firebase Config
     const firebaseConfig ={
       apiKey: "AIzaSyCjhBRSiv-Y-AjqCv70pD1Hpd_iDClsFH0",
@@ -37,12 +46,75 @@ export default class Chat extends React.Component {
       appId: "1:470458640572:web:dc189ccc2d71f27e5148b9"
     }
 
-    // Connect to Firebase
+    // Connecting to Firebase
     if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
     }
     // References Firebase messages
     this.referenceChatMessages = firebase.firestore().collection('messages');
+  }
+
+  componentDidMount() {
+    //get name from start screen and change title of page to user's name
+    let name = this.props.route.params.name;
+    //get the name from the home screen and change the title of the page to the name of the user
+    this.props.navigation.setOptions({ title: name });
+    // To check user connection
+    NetInfo.fetch().then(connection => {
+      if (connection.isConnected) {
+        console.log('online');
+      } else {
+        console.log('offline');
+      }
+    });
+
+    // Referencing to load messages via Firebase
+    this.referenceChatMessages = firebase.firestore().collection('messages');
+  
+    // listen to authentication events
+    this.authUnsubscribe = firebase.auth().onAuthStateChanged(async (user) => {
+      if (!user) {
+        await firebase.auth().signInAnonymously();
+      }
+      // Adding user to state
+      this.setState({
+        uid: user.uid,
+        user: {
+          _id: user.uid,
+          name: name,
+          avatar: 'https://placeimg.com/140/140/any',
+        },
+        messages: [],
+      });
+  
+    //update user state with currently active user data
+    this.setState({
+      uid: user.uid,
+      loggedInText: 'Hello there',
+    });
+  
+    this.unsubscribe = this.referenceChatMessages
+       .orderBy("createdAt", "desc").onSnapshot(this.onCollectionUpdate);
+    });
+  }
+
+  //when a user clicks Send, attach the new message to the message status object
+  onSend(messages = []) {
+    this.setState((previousState) => ({
+      messages: GiftedChat.append(previousState.messages, messages),
+    }),
+    () => {
+      this.addMessage();
+      this.saveMessages();
+    }
+  );
+}
+
+componentWillUnmount() {
+  // stop listening to authentication
+    this.authUnsubscribe();
+    // stop listening for changes
+    this.unsubscribe(); 
   }
 
   // Updating messages state
@@ -59,6 +131,7 @@ export default class Chat extends React.Component {
         user: {
           _id: data.user._id,
           name: data.user.name,
+          avatar: data.user.avatar,
         },
         image: data.image,
         location: data.location
@@ -68,6 +141,39 @@ export default class Chat extends React.Component {
       messages,
     });
   }
+
+  // Retrieving messages from client-side storage
+  async getMessages() {
+    let messages = '';
+    try {
+      messages = (await AsyncStorage.getItem('messages')) || [];
+      this.setState({
+        messages: JSON.parse(messages)
+      });
+    } catch (error) {
+      console.log(error.message);
+    }
+  };
+  // Deleting messages in client-side storage
+  async deleteMessages() {
+    try {
+      await AsyncStorage.removeItem('messages');
+      this.setState({
+        messages: []
+      })
+    } catch (error) {
+      console.log(error.message);
+    }
+  }
+
+  // Saving messages in client-side storage
+  async saveMessages() {
+    try {
+      await AsyncStorage.setItem('messages', JSON.stringify(this.state.messages));
+    } catch (error) {
+      console.log(error.message);
+    }
+  };
 
   // Adding messages to cloud storage
   addMessage() {
@@ -80,67 +186,42 @@ export default class Chat extends React.Component {
       user: message.user,
     });
   }
+
   //when a user clicks Send, attach the new message to the message status object
   onSend(messages = []) {
     this.setState((previousState) => ({
       messages: GiftedChat.append(previousState.messages, messages),
     }),
-  )
-}
-
-componentDidMount() {
-  //get name from start screen and change title of page to user's name
-  let name = this.props.route.params.name;
-  //get the name from the home screen and change the title of the page to the name of the user
-  this.props.navigation.setOptions({ title: name });
-
-  // listen to authentication events
-  this.authUnsubscribe = firebase.auth().onAuthStateChanged(async (user) => {
-    if (!user) {
-      firebase.auth().signInAnonymously();
+    () => {
+      this.addMessage();
+      this.saveMessages();
+    });
+  }
+  // To only render the default InputToolbar when the user is online
+  renderInputToolbar(props) {
+    if (this.state.isConnected == false) {
+    } else {
+      return(
+        <InputToolbar
+        {...props}
+        />
+      );
     }
-
-  //update user state with currently active user data
-  this.setState({
-    uid: user.uid,
-    loggedInText: 'Hello there',
-  });
-
-  this.unsubscribe = this.referenceChatMessages
-     .orderBy("createdAt", "desc")
-     .onSnapshot(this.onCollectionUpdate);
-  // Create reference to the active users messages
-    this.referenceChatMessages = firebase.firestore().collection('messages').where("uid", "==", this.state.uid);
-  });
-}
-
-componentWillUnmount() {
-  // stop listening to authentication
-    this.authUnsubscribe();
-    // stop listening for changes
-    this.unsubscribe(); 
-}
-
-  //when a user clicks Send, attach the new message to the message status object
-  onSend(messages = []) {
-    this.setState((previousState) => ({
-      messages: GiftedChat.append(previousState.messages, messages),
-    }));
   }
 
-//Change the color of the right bubble (of the sender
-renderBubble(props) {
-  return (
-    <Bubble
-      {...props}
-      wrapperStyle={{
-        right: {
-          backgroundColor: '#000'
-        }
-      }}
-    />
-  )
-} 
+  //Change the color of the right bubble (of the sender
+  renderBubble(props) {
+    return (
+      <Bubble
+        {...props}
+        wrapperStyle={{
+          right: {
+            backgroundColor: '#000'
+          }
+        }}
+      />
+    )
+  } 
 
   render() {
     //get the name and background color that the user selected on the home screen to change the
@@ -159,7 +240,7 @@ renderBubble(props) {
             messages={this.state.messages}
             onSend={messages => this.onSend(messages)}
             user={{
-              _id: 1,
+              _id: this.state.uid,
             }}
           />  
           {Platform.OS === 'android' ? 
@@ -185,3 +266,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   }
 });
+
