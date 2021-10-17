@@ -4,6 +4,7 @@ import NetInfo from '@react-native-community/netinfo';
 import 
 { 
   View, 
+  Alert,
   StyleSheet, 
   Platform, 
   KeyboardAvoidingView,
@@ -12,7 +13,7 @@ import
 import 
 { GiftedChat, 
   Bubble,
-  Button
+  InputToolbar
 } from 'react-native-gifted-chat';
 
 //Firebase Database
@@ -26,6 +27,7 @@ export default class Chat extends React.Component {
     this.state = {
       messages: [],
       uid: 0,
+      loggedInText: 'Please wait, you are getting logged in',
       user: {
         _id: '',
         name: '',
@@ -52,6 +54,7 @@ export default class Chat extends React.Component {
     }
     // References Firebase messages
     this.referenceChatMessages = firebase.firestore().collection('messages');
+    this.referenceMessageUser = null;
   }
 
   componentDidMount() {
@@ -59,57 +62,46 @@ export default class Chat extends React.Component {
     let name = this.props.route.params.name;
     //get the name from the home screen and change the title of the page to the name of the user
     this.props.navigation.setOptions({ title: name });
-    // To check user connection
-    NetInfo.fetch().then(connection => {
+    // To Check user connection
+    NetInfo.fetch().then((connection) => {
       if (connection.isConnected) {
-        console.log('online');
-      } else {
-        console.log('offline');
-      }
-    });
+        this.setState({ isConnected: true });
+        console.log("online");
 
-    // Referencing to load messages via Firebase
-    this.referenceChatMessages = firebase.firestore().collection('messages');
-  
-    // listen to authentication events
-    this.authUnsubscribe = firebase.auth().onAuthStateChanged(async (user) => {
-      if (!user) {
-        await firebase.auth().signInAnonymously();
+        // Referencing to load messages via Firebase
+        this.referenceChatMessages = firebase
+          .firestore().collection('messages');
+
+        // Listen to authentication events
+        this.authUnsubscribe = 
+        firebase.auth().onAuthStateChanged(async (user) => {
+            if (!user) {
+              await firebase.auth().signInAnonymously();
+            }
+            // Adding user to state
+            this.setState({
+              uid: user.uid,
+              user: {
+                _id: user.uid,
+                name: name,
+                avatar: 'https://placeimg.com/140/140/any',
+              },
+              messages: [],
+            });
+            // Listening for collection changes for current user
+            this.unsubscribeChatUser = this.referenceChatMessages
+              .orderBy('createdAt', 'desc')
+              .onSnapshot(this.onCollectionUpdate);
+          });
+      } else {
+        this.setState({ isConnected: false });
+        this.getMessages();
+        Alert.alert(
+          'No internet connection detected | Unable to send messages'
+        );
       }
-      // Adding user to state
-      this.setState({
-        uid: user.uid,
-        user: {
-          _id: user.uid,
-          name: name,
-          avatar: 'https://placeimg.com/140/140/any',
-        },
-        messages: [],
-      });
-  
-    //update user state with currently active user data
-    this.setState({
-      uid: user.uid,
-      loggedInText: 'Hello there',
-    });
-  
-    this.unsubscribe = this.referenceChatMessages
-       .orderBy("createdAt", "desc").onSnapshot(this.onCollectionUpdate);
     });
   }
-
-  //when a user clicks Send, attach the new message to the message status object
-  onSend(messages = []) {
-    this.setState((previousState) => ({
-      messages: GiftedChat.append(previousState.messages, messages),
-    }),
-    () => {
-      this.addMessage();
-      this.saveMessages();
-    }
-  );
-}
-
 componentWillUnmount() {
   // stop listening to authentication
     this.authUnsubscribe();
@@ -124,18 +116,21 @@ componentWillUnmount() {
     querySnapshot.forEach((doc) => {
       // get the QueryDocumentSnapshot's data
       let data = doc.data();
-      messages.push({
-        _id: data._id,
-        createdAt: data.createdAt.toDate(),
-        text: data.text || '',
-        user: {
-          _id: data.user._id,
-          name: data.user.name,
-          avatar: data.user.avatar,
-        },
-        image: data.image,
-        location: data.location
-      });
+      //console.log(data)
+      if(data._id) {
+        messages.push({
+          _id: data._id,
+          createdAt: data.createdAt.toDate(),
+          text: data.text || '',
+          user: {
+            _id: data.user._id,
+            name: data.user.name,
+            avatar: data.user.avatar,
+          },
+          image: data.image,
+          location: data.location
+        });
+      }
     });
     this.setState({
       messages,
@@ -234,6 +229,7 @@ componentWillUnmount() {
           <GiftedChat
             //change the color of the chat bubble
             renderBubble={this.renderBubble.bind(this)}
+            renderInputToolbar={this.renderInputToolbar.bind(this)}
             renderUsernameOnMessage={true}
             renderCustomView={this.renderCustomView}
             renderActions={this.renderActions}
@@ -241,6 +237,8 @@ componentWillUnmount() {
             onSend={messages => this.onSend(messages)}
             user={{
               _id: this.state.uid,
+            avatar: 'https://placeimg.com/140/140/any',
+            name: this.props.route.params.name,
             }}
           />  
           {Platform.OS === 'android' ? 
@@ -266,4 +264,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   }
 });
+
+
 
