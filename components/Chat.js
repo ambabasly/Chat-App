@@ -1,13 +1,16 @@
 import React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
+import MapView from 'react-native-maps';
+import CustomActions from './CustomActions';
 import 
 { 
   View, 
   Alert,
   StyleSheet, 
-  Platform, 
+  Platform,
   KeyboardAvoidingView,
+  LogBox
 } from 'react-native';
 
 import 
@@ -27,7 +30,6 @@ export default class Chat extends React.Component {
     this.state = {
       messages: [],
       uid: 0,
-      loggedInText: 'Please wait, you are getting logged in',
       user: {
         _id: '',
         name: '',
@@ -54,7 +56,15 @@ export default class Chat extends React.Component {
     }
     // References Firebase messages
     this.referenceChatMessages = firebase.firestore().collection('messages');
-    this.referenceMessageUser = null;
+    //this.referenceMessageUser = null;
+
+    // This ignore warning message in the console
+    LogBox.ignoreLogs([
+      'Setting a timer',
+      'Warning: ...',
+      'undefined',
+      'Animated.event now requires a second argument for options',
+    ]);
   }
 
   componentDidMount() {
@@ -96,9 +106,7 @@ export default class Chat extends React.Component {
       } else {
         this.setState({ isConnected: false });
         this.getMessages();
-        Alert.alert(
-          'No internet connection detected | Unable to send messages'
-        );
+        Alert.alert('No internet connection detected | Unable to send messages');
       }
     });
   }
@@ -106,7 +114,7 @@ componentWillUnmount() {
   // stop listening to authentication
     this.authUnsubscribe();
     // stop listening for changes
-    this.unsubscribe(); 
+    this.unsubscribeChatUser(); 
   }
 
   // Updating messages state
@@ -138,7 +146,7 @@ componentWillUnmount() {
   }
 
   // Retrieving messages from client-side storage
-  async getMessages() {
+  getMessages = async () => {
     let messages = '';
     try {
       messages = (await AsyncStorage.getItem('messages')) || [];
@@ -150,7 +158,7 @@ componentWillUnmount() {
     }
   };
   // Deleting messages in client-side storage
-  async deleteMessages() {
+  deleteMessages = async () => {
     try {
       await AsyncStorage.removeItem('messages');
       this.setState({
@@ -162,7 +170,7 @@ componentWillUnmount() {
   }
 
   // Saving messages in client-side storage
-  async saveMessages() {
+  saveMessages = async () => {
     try {
       await AsyncStorage.setItem('messages', JSON.stringify(this.state.messages));
     } catch (error) {
@@ -179,6 +187,8 @@ componentWillUnmount() {
       createdAt: message.createdAt,
       text: message.text || '',
       user: message.user,
+      image: message.image || '',
+      location: message.location || null,
     });
   }
 
@@ -210,13 +220,40 @@ componentWillUnmount() {
       <Bubble
         {...props}
         wrapperStyle={{
-          right: {
-            backgroundColor: '#000'
-          }
+          right: { backgroundColor: '#000'}
         }}
       />
     )
-  } 
+  }
+  //function is responsible for creating the circle button
+  renderCustomActions = (props) => {
+    return <CustomActions {...props} />;
+  };
+
+    // Returns a MapView that shows user's location
+    renderCustomView(props) {
+      const { currentMessage } = props;
+      if (currentMessage.location) {
+        return (
+          <MapView
+            showsUserLocation={true}
+            style={{
+              width: 150,
+              height: 100,
+              borderRadius: 13,
+              margin: 8,
+            }}
+            region={{
+              longitude: Number(currentMessage.location.longitude),
+              latitude: Number(currentMessage.location.latitude),
+              latitudeDelta: 0.0922,
+              longitudeDelta: 0.0421,   
+            }}
+          />
+        );
+      }
+      return null;
+    }  
 
   render() {
     //get the name and background color that the user selected on the home screen to change the
@@ -231,8 +268,9 @@ componentWillUnmount() {
             renderBubble={this.renderBubble.bind(this)}
             renderInputToolbar={this.renderInputToolbar.bind(this)}
             renderUsernameOnMessage={true}
+            //custom actions to take photo, select photo, send location
             renderCustomView={this.renderCustomView}
-            renderActions={this.renderActions}
+            renderActions={this.renderCustomActions}
             messages={this.state.messages}
             onSend={messages => this.onSend(messages)}
             user={{
@@ -264,6 +302,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   }
 });
+
+
 
 
 
