@@ -6,6 +6,8 @@
 
 - Android Studio.
 
+<a href="https://www.youtube.com/watch?v=cI2rUnXU8R0">Video link here!</a>
+
 ## To create new project 
 - npm install expo-cli --global
 - expo start
