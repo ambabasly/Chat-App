@@ -4,6 +4,14 @@
 ## Built With
 - React Native
 
+- Android Studio.
+
+<a href="https://www.youtube.com/watch?v=cI2rUnXU8R0">Video link here!</a>
+
+## To create new project 
+- npm install expo-cli --global
+- expo start
+
 ## Getting Started
 **To build a chat app for mobile devices using React Native. The app will provide users with a chat interface and options to share images and their location..**
 
@@ -38,4 +46,18 @@
 - Location data must be sent via the chat in a map view.
 - The chat interface and functionality must be created using the Gifted Chat library.
 - The app's codebase must contain comments.
+
+## Install
+- npm install --save react-navigation
+- npm install @react-navigation/native @react-navigation/stack
+- expo install react-native-reanimated react-native-gesture-handler react-native-screens react-native-safe-area-context @react-native-community/masked-view
+- npm install react-native-gifted-chat --save
+- npm install --save firebase@7.9.0
+- expo install @react-native-community/async-storage
+- expo install @react-native-community/netinfo
+- expo install expo-permissions
+- expo install expo-image-picker
+- expo install expo-location
+- expo install expo-location
+
 
