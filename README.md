@@ -1,5 +1,3 @@
-# Project Name
-**ChatAPP**
 
 ## Built With
 - React Native
